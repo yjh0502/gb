@@ -17,7 +17,7 @@ const query_create_table = `create table if not exists test
     k text,
     v text,
     primary key(id)
-) engine=InnoDB partition by hash(id) partitions 16;`
+) engine=TokuDB;`
 
 type mysqlBench struct {
     db *sql.DB
