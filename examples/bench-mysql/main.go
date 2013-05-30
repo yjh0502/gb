@@ -8,6 +8,7 @@ import (
     "fmt"
     "hash/fnv"
     "io"
+    "flag"
 )
 
 const query_create_table = `create table if not exists test
@@ -45,11 +46,16 @@ func (b *mysqlBench) Execute() (done bool, err error) {
     return false, nil
 }
 
+var dsn string
+func parseFlags() {
+	flag.StringVar(&dsn, "dsn", "test:test@tcp(localhost:3306)/test?charset=utf8", "Mysql DSN")
+}
+
 func benchInit() (gb.BenchmarkRunner, error) {
     var err error
     b := new(mysqlBench)
 
-    b.db, err = sql.Open("mysql", "test:test@tcp(1.237.186.213:3306)/test?charset=utf8")
+    b.db, err = sql.Open("mysql", dsn)
     if err != nil {
         return nil, fmt.Errorf("Failed to connect database: %s", err.Error())
     }
@@ -68,6 +74,7 @@ func benchInit() (gb.BenchmarkRunner, error) {
 }
 
 func main() {
+    parseFlags()
 	b := gb.NewBench()
 	b.Run(benchInit)
 }

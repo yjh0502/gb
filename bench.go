@@ -61,7 +61,7 @@ func (l *LatencyCounter) printLog() {
 type Bench struct {
 	count uint
 
-	numParallels, numTrials, numThrottles uint
+	numConcurrent, numTrials, numThrottles uint
 	monitorLatency                        bool
 
 	chDone chan int
@@ -189,18 +189,18 @@ func (b *Bench) run(runner BenchmarkRunner) {
 }
 
 func (b *Bench) init() {
-	flag.UintVar(&b.numParallels, "parallel", 50, "Number of parallel executions")
-	flag.UintVar(&b.numParallels, "p", 50, "Number of parallel executions")
-	flag.UintVar(&b.numTrials, "num", 1000, "Number of trials")
-	flag.UintVar(&b.numTrials, "n", 1000, "Number of trials")
-	flag.UintVar(&b.numThrottles, "throttle", 1000000, "Number of queries per seconds")
-	flag.UintVar(&b.numThrottles, "t", 1000000, "Number of queries per seconds")
+	flag.UintVar(&b.numConcurrent, "concurrent", 50, "Number of concurrent executions")
+	flag.UintVar(&b.numConcurrent, "c", 50, "Number of concurrent executions")
+	flag.UintVar(&b.numTrials, "num", 1000, "Number of executions")
+	flag.UintVar(&b.numTrials, "n", 1000, "Number of executions")
+	flag.UintVar(&b.numThrottles, "throttle", 1000000, "Maximum number of queries per seconds")
+	flag.UintVar(&b.numThrottles, "t", 1000000, "Maximum number of queries per seconds")
 
 	flag.BoolVar(&b.monitorLatency, "b", true, "Monitor & print latency")
 
 	flag.Parse()
 
-	b.chDone = make(chan int, b.numParallels)
+	b.chDone = make(chan int, b.numConcurrent)
 }
 
 type BenchGenFunc func() (r BenchmarkRunner, err error)
@@ -219,7 +219,7 @@ func (b *Bench) Run(gen BenchGenFunc) {
 		go b.run(runner)
 	}
 
-	for i := uint(0); i < b.numParallels; i++ {
+	for i := uint(0); i < b.numConcurrent; i++ {
 		b.chDone <- 0
     }
 
