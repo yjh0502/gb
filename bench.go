@@ -10,22 +10,15 @@ import (
 
 	"os"
 	"os/signal"
+    "runtime/pprof"
 )
 
-var alphanum = []byte(`123456789qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM`)
-var alphanum_len = len(alphanum)
-
 func GetRandStr(length int) string {
-	buf := make([]byte, length)
-	for i := 0; i < length; i++ {
-		buf[i] = alphanum[rand.Intn(alphanum_len)]
-	}
-
-	return string(buf)
+    return genRandString(length)
 }
 
-func BenchPrepare() {
-	rand.Seed(time.Now().UnixNano())
+func Prepare() {
+    seed = uint32(time.Now().UnixNano())
 }
 
 type LatencyCounter [10]int
@@ -72,9 +65,10 @@ type Bench struct {
 	latencyCounter *LatencyCounter
 
 	chSignal chan os.Signal
+    profilePath string
 }
 
-func NewBench() (b *Bench) {
+func New() (b *Bench) {
 	b = new(Bench)
 	b.count = 0
 
@@ -119,10 +113,7 @@ func (b *Bench) loop() {
 
 		//handle signal
 		case <-b.chSignal:
-			if b.monitorLatency {
-				b.latencyCounter.printLog()
-			}
-            panic("dump stacktrace")
+            b.cleanup()
 			os.Exit(-1)
 		}
 	}
@@ -197,21 +188,39 @@ func (b *Bench) init() {
 	flag.UintVar(&b.numThrottles, "t", 1000000, "Maximum number of queries per seconds")
 
 	flag.BoolVar(&b.monitorLatency, "b", true, "Monitor & print latency")
+    flag.StringVar(&b.profilePath, "p", "", "Profiling path")
 
 	flag.Parse()
 
 	b.chDone = make(chan int, b.numConcurrent)
 }
 
-type BenchGenFunc func() (r BenchmarkRunner, err error)
+func (b *Bench) cleanup() {
+	if b.monitorLatency {
+		b.latencyCounter.printLog()
+	}
+    if b.profilePath != "" {
+        pprof.StopCPUProfile()
+    }
+}
+
+type BenchGenFunc func(seq uint) (r BenchmarkRunner, err error)
 
 func (b *Bench) Run(gen BenchGenFunc) {
 	rand.Seed(time.Now().UnixNano())
 	go b.loop()
 
+    if b.profilePath != "" {
+        f, err := os.Create(b.profilePath)
+        if err != nil {
+            log.Fatal("Failed to create profile file: %s", err.Error())
+        }
+        pprof.StartCPUProfile(f)
+    }
+
 	for i := uint(0); i < b.numTrials; i++ {
 		b.chDone <- 0
-		runner, err := gen()
+		runner, err := gen(i)
 		if err != nil {
 			panic(fmt.Sprintf("Failed to generate instance: %s", err.Error()))
 		}
@@ -223,9 +232,7 @@ func (b *Bench) Run(gen BenchGenFunc) {
 		b.chDone <- 0
     }
 
-	if b.monitorLatency {
-		b.latencyCounter.printLog()
-	}
+    b.cleanup()
 }
 
 type BenchmarkRunner interface {
